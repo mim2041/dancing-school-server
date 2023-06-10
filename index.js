@@ -38,6 +38,13 @@ async function run() {
       res.send(result);
     })
 
+    //get all users
+    app.get("/users", async (req, res) => {
+      const query = {};
+      const users = await usersCollection.find(query).toArray();
+      res.send(users);
+    });
+
     
     // save user info
     app.post("/users", async (req, res) => {
