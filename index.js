@@ -26,8 +26,17 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    const usersCollection = client.db('dancingSchool').collection('users');
     const classesCollection = client.db('dancingSchool').collection('classes');
 
+    //check student user
+    app.get("/users/student/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      res.send({ isStudent: user?.role === "student" });
+    });
+    
     app.get('/classes', async(req, res) => {
       const result = await classesCollection.find().toArray();
       res.send(result);
