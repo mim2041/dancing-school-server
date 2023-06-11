@@ -29,6 +29,16 @@ async function run() {
     const usersCollection = client.db('dancingSchool').collection('users');
     const classesCollection = client.db('dancingSchool').collection('classes');
 
+
+
+    //check instructor user
+    app.get("/users/instructor/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      res.send({ isInstructor: user?.role === "instructor" });
+    });
+
     //check student user
     app.get("/users/student/:email", async (req, res) => {
       const email = req.params.email;
