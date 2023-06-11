@@ -29,7 +29,17 @@ async function run() {
     const usersCollection = client.db('dancingSchool').collection('users');
     const classesCollection = client.db('dancingSchool').collection('classes');
 
+     // verify admin user
+     const verifyAdmin = async (req, res, next) => {
+      const decodedEmail = req.decoded.email;
+      const query = { email: decodedEmail };
+      const user = await usersCollection.findOne(query);
 
+      if (user?.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
     
     // verify student
     const verifyStudent = async (req, res, next) => {
