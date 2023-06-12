@@ -9,7 +9,7 @@ app.use(express.json());
 require("dotenv").config();
 
 
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.yk5wl6u.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -107,12 +107,18 @@ async function run() {
       }
     });
 
-    app.delete('/classes/:id', async(req, res) => {
-      const id = req.params.id;
-      const query = {_id: new ObjectId(id)};
-      const result = await classesCollection.deleteOne(query);
-      res.send(result);
-    })
+
+     app.post("/instructor/addClass", async (req, res) => {
+      const classInfo = req.body;
+      console.log(classInfo)
+      // const query = { class_name: classInfo.class_name };
+      // const clsname = await classesCollection.findOne(query);
+      // console.log(clsname)
+      // if (!clsname) {
+        res.send(result);
+      // }
+    });
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
