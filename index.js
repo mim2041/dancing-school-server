@@ -1,15 +1,16 @@
+require("dotenv").config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
 
 // middleware
 app.use(cors());
 app.use(express.json());
-require("dotenv").config();
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+// const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.yk5wl6u.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -21,13 +22,25 @@ const client = new MongoClient(uri, {
   }
 });
 
-async function run() {
+const dbConnect = async () => {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    client.connect();
+    console.log("Database Connected Successfully✅");
+
+  } catch (error) {
+    console.log(error.name, error.message);
+  }
+}
+dbConnect()
+
 
     const usersCollection = client.db('dancingSchool').collection('users');
     const classesCollection = client.db('dancingSchool').collection('classes');
+    const selectedClassesCollection = client.db('dancingSchool').collection('selectedClasses');
+
+    app.get('/', async(req, res) => {
+      res.send("dancing school is running");
+    })
 
      // verify admin user
      const verifyAdmin = async (req, res, next) => {
@@ -84,13 +97,19 @@ async function run() {
     })
 
     app.get('/instructors', async(req, res) => {
-      const result = await classesCollection.find().toArray();
+      const result = await usersCollection.find().toArray();
       res.send(result);
     })
 
     //get all users
     app.get("/users", async (req, res) => {
       const query = {};
+      const users = await usersCollection.find(query).toArray();
+      res.send(users);
+    });
+    app.get("/users/:email", async (req, res) => {
+      const email=req.params.email
+      const query = {email};
       const users = await usersCollection.find(query).toArray();
       res.send(users);
     });
@@ -108,32 +127,140 @@ async function run() {
     });
 
 
+    app.put("/users/admin/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id:new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await usersCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      
+      res.send(result);
+    });
+
+    app.put("/users/instructor/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id:new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: {
+          role: "instructor",
+        },
+      };
+      const result = await usersCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      
+      res.send(result);
+    });
+
+
+    app.get("/selectedClasses/:email", async (req, res) => {
+      const email=req.params.email
+      console.log(email)
+      const query = {studentEmail:email};
+      const users = await selectedClassesCollection.find(query).toArray();
+      res.send(users);
+    });
+    app.post("/selectedClasses", async (req, res) => {
+      const classInfo = req.body;
+      const query = { id: classInfo.id,studentEmail:classInfo.studentEmail };
+      const classes = await selectedClassesCollection.findOne(query);
+      if (!classes) {
+        const result = await selectedClassesCollection.insertOne(classInfo);
+        res.send(result);
+      }
+    });
+    app.delete("/selectedClasses/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id)
+      const query = { _id:new ObjectId(id) };
+      const result = await selectedClassesCollection.deleteOne(query);
+      res.send(result);
+      
+    });
      app.post("/instructor/addClass", async (req, res) => {
       const classInfo = req.body;
-      console.log(classInfo)
       // const query = { class_name: classInfo.class_name };
       // const clsname = await classesCollection.findOne(query);
       // console.log(clsname)
       // if (!clsname) {
+        const result = await classesCollection.insertOne(classInfo);
         res.send(result);
       // }
     });
 
+//  app.post("/create-payment-intent", async (req, res) => {
+//       const booking = req.body;
+//       const price = booking.price;
+//       const amount = price * 100;
 
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
-}
-run().catch(console.dir);
+//       const paymentIntent = await stripe.paymentIntents.create({
+//         currency: "usd",
+//         amount: amount,
+//         payment_method_types: ["card"],
+//       });
+//       res.send({
+//         clientSecret: paymentIntent.client_secret,
+//       });
+//     });
 
 
-app.get('/', (req, res) => {
-    res.send('Dancing school is running');
-})
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      console.log(payment);
+      const query = {
+        book_id: payment.book_id,
+      };
+      const alreadyPaid = await paymentsCollection.find(query).toArray();
+      if (alreadyPaid.length) {
+        const message = `Already Buy this book by Someone .Please try another one`;
+        return res.send({ acknowledged: false, message });
+      }
+      const result = await paymentsCollection.insertOne(payment);
+      const id = payment.bookingId;
+      const book_id = payment.book_id;
+      const filter = { _id: ObjectId(id) };
+      console.log(filter);
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId,
+        },
+      };
+      const updatedResult = await bookingsCollection.updateOne(
+        filter,
+        updatedDoc
+      );
+      console.log(updatedResult, "res1");
+      const filter1 = { _id: ObjectId(book_id) };
+      const updatedDoc1 = {
+        $set: {
+          productStatus: "sold",
+          isAdvertised: "no",
+        },
+      };
+      const updatedResult1 = await productsCollection.updateOne(
+        filter1,
+        updatedDoc1
+      );
+      console.log(updatedResult1, "res2");
+      res.send(result);
+
+
+    });
+
+
 
 app.listen(port, () => {
     console.log(`Dancing School is running on port ${port}`)
